@@ -19,24 +19,34 @@ jobs:
         with:
           gradle-version: 8.7
 
-      # Si les secrets de signature existent, on recrée le fichier de clé ; sinon l'APK est signé en mode débogage.
+      # Si les secrets de signature existent, on recrée le fichier de clé (en retirant espaces et retours à la ligne
+      # éventuellement ajoutés au collage) ; sinon l'APK est signé en mode débogage.
       - name: Préparer la clé de signature
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD_RAW: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD_RAW: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS_RAW: ${{ secrets.KEY_ALIAS }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/release.jks"
             echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$(printf '%s' "$KEYSTORE_PASSWORD_RAW" | tr -d '[:space:]')" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$(printf '%s' "$KEY_PASSWORD_RAW" | tr -d '[:space:]')" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$(printf '%s' "$KEY_ALIAS_RAW" | tr -d '[:space:]')" >> "$GITHUB_ENV"
             echo "Clé de signature fixe trouvée."
           else
             echo "Pas de clé de signature : signature de débogage."
           fi
 
+      - name: Vérifier la clé de signature (fichier, mot de passe, alias)
+        if: env.KEYSTORE_FILE != ''
+        run: |
+          keytool -list -keystore "$KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null \
+            || { echo "::error::Clé de signature illisible : vérifier KEYSTORE_BASE64, KEYSTORE_PASSWORD et KEY_ALIAS"; exit 1; }
+          echo "Clé de signature valide."
+
       - name: Compiler l'APK
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease --no-daemon
 
       - uses: actions/upload-artifact@v4
