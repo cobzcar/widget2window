@@ -19,10 +19,27 @@ jobs:
         with:
           gradle-version: 8.7
 
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+      # Si les secrets de signature existent, on recrée le fichier de clé ; sinon l'APK est signé en mode débogage.
+      - name: Préparer la clé de signature
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "Clé de signature fixe trouvée."
+          else
+            echo "Pas de clé de signature : signature de débogage."
+          fi
+
+      - name: Compiler l'APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: gradle assembleRelease --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
-          name: widget2window-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: widget2window-apk
+          path: app/build/outputs/apk/release/app-release.apk
