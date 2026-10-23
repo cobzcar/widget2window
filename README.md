@@ -17,7 +17,8 @@ Config : minSdk 26 (Android 8.0), cible Android 14, Kotlin, aucune dépendance e
 3. Le widget apparaît dans une fenêtre flottante :
    - **≡ déplacer** (barre du haut) : glisser pour déplacer ;
    - **◢** (coin en bas à droite) : glisser pour redimensionner (le widget est prévenu de sa nouvelle taille) ;
-   - **✕** : fermer et retirer le widget.
+   - **✕** : fermer et retirer le widget ;
+   - ces commandes se superposent au widget, disparaissent 0,7 s après le dernier toucher et réapparaissent dès qu'on touche la fenêtre.
 4. Positions et tailles sont mémorisées. **Tout masquer** (dans l'appli ou la notification) ferme les fenêtres sans oublier les widgets ; **Afficher les fenêtres** les rouvre.
 
 ## Structure
