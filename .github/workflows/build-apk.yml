@@ -42,8 +42,10 @@ jobs:
       - name: Vérifier la clé de signature (fichier, mot de passe, alias)
         if: env.KEYSTORE_FILE != ''
         run: |
-          keytool -list -keystore "$KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null \
-            || { echo "::error::Clé de signature illisible : vérifier KEYSTORE_BASE64, KEYSTORE_PASSWORD et KEY_ALIAS"; exit 1; }
+          out=$(keytool -list -keystore "$KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1) || {
+            echo "::error::Clé illisible. keytool: $(echo "$out" | head -2 | tr '\n' ' ') | taille=$(stat -c%s "$KEYSTORE_FILE") sha256=$(sha256sum "$KEYSTORE_FILE" | cut -c1-16) lg_mdp=${#KEYSTORE_PASSWORD} lg_alias=${#KEY_ALIAS}"
+            exit 1
+          }
           echo "Clé de signature valide."
 
       - name: Compiler l'APK
