@@ -77,6 +77,14 @@ class MainActivity : Activity() {
             text = "Fermer le lecteur musique"
             setOnClickListener { stopService(Intent(this@MainActivity, MusicWindowService::class.java)) }
         }
+        val autostartSwitch = android.widget.Switch(this).apply {
+            text = "Lancer le lecteur musique au démarrage"
+            isChecked = BootReceiver.isAutostartEnabled(this@MainActivity)
+            setPadding(0, dp(8), 0, dp(8))
+            setOnCheckedChangeListener { _, checked ->
+                BootReceiver.setAutostartEnabled(this@MainActivity, checked)
+            }
+        }
         val listTitle = TextView(this).apply {
             text = "Widgets enregistrés"
             textSize = 18f
@@ -91,6 +99,7 @@ class MainActivity : Activity() {
         root.addView(hideButton)
         root.addView(musicButton)
         root.addView(musicStopButton)
+        root.addView(autostartSwitch)
         root.addView(listTitle)
         root.addView(listBox)
         setContentView(ScrollView(this).apply { addView(root) })

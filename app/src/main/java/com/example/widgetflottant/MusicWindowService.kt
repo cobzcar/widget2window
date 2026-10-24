@@ -8,7 +8,9 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.provider.Settings
 import android.view.WindowManager
 
@@ -25,6 +27,7 @@ class MusicWindowService : Service() {
     }
 
     private var window: MusicWindow? = null
+    private val handler = Handler(Looper.getMainLooper())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -35,14 +38,27 @@ class MusicWindowService : Service() {
             return START_NOT_STICKY
         }
         if (window == null) {
-            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-            window = MusicWindow(this, wm) { stopSelf() }.also { it.show() }
             running = true
+            tryShow(0)
         }
         return START_STICKY
     }
 
+    /** Au démarrage de la box l'écran peut ne pas être prêt : on réessaie quelques fois avant d'abandonner. */
+    private fun tryShow(attempt: Int) {
+        if (window != null) return
+        try {
+            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+            val w = MusicWindow(this, wm) { stopSelf() }
+            w.show()
+            window = w
+        } catch (e: Exception) {
+            if (attempt < 5) handler.postDelayed({ tryShow(attempt + 1) }, 4000)
+        }
+    }
+
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         running = false
         window?.hide()
         window = null

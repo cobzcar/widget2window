@@ -25,6 +25,8 @@ Config : minSdk 26 (Android 8.0), cible Android 14, Kotlin, aucune dépendance e
 
 Le bouton **♪ Lecteur musique flottant** affiche une fenêtre avec la pochette, les boutons (précédent, -10 s, lecture/pause, +10 s, suivant), le titre et l'artiste de la musique en cours, quelle que soit l'appli (Poweramp, Spotify…). Il ne dépend pas des widgets Android, donc il fonctionne aussi sur les appareils où les widgets ne peuvent pas être liés (certaines box de voiture).
 
+Un interrupteur « Lancer le lecteur musique au démarrage » (activé par défaut) le relance tout seul au démarrage de l'appareil et après une mise à jour de l'appli. Il faut avoir lancé l'appli au moins une fois et accordé la permission d'affichage par-dessus les autres applis. Certaines box bloquent le démarrage automatique des applis : le cas échéant, l'autoriser dans leurs réglages (démarrage automatique / batterie).
+
 Il faut accorder l'« accès aux notifications » à l'appli (Réglages), ou par ADB :
 `cmd notification allow_listener com.example.widgetflottant/com.example.widgetflottant.MediaListenerService`
 
