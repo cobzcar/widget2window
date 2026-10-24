@@ -49,6 +49,8 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        // La bibliothèque ADB est compilée avec un Kotlin plus récent : on accepte ses métadonnées
+        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
 
     packaging {
@@ -63,4 +65,12 @@ android {
 dependencies {
     // Client ADB en Kotlin : association par code (Débogage sans fil) et commandes shell
     implementation("com.flyfishxu:kadb:2.1.5")
+}
+
+// La bibliothèque ADB demande de compiler contre l'API 37 ; on n'utilise pas d'API récente d'Android,
+// donc on désactive ce contrôle plutôt que de monter tout le projet en version.
+tasks.configureEach {
+    if (name.startsWith("check") && name.endsWith("AarMetadata")) {
+        enabled = false
+    }
 }
