@@ -21,6 +21,13 @@ Config : minSdk 26 (Android 8.0), cible Android 14, Kotlin, aucune dépendance e
    - ces commandes se superposent au widget, disparaissent 0,7 s après le dernier toucher et réapparaissent dès qu'on touche la fenêtre.
 4. Positions et tailles sont mémorisées. **Tout masquer** (dans l'appli ou la notification) ferme les fenêtres sans oublier les widgets ; **Afficher les fenêtres** les rouvre.
 
+## Lecteur musique flottant
+
+Le bouton **♪ Lecteur musique flottant** affiche une fenêtre avec la pochette, les boutons (précédent, -10 s, lecture/pause, +10 s, suivant), le titre et l'artiste de la musique en cours, quelle que soit l'appli (Poweramp, Spotify…). Il ne dépend pas des widgets Android, donc il fonctionne aussi sur les appareils où les widgets ne peuvent pas être liés (certaines box de voiture).
+
+Il faut accorder l'« accès aux notifications » à l'appli (Réglages), ou par ADB :
+`cmd notification allow_listener com.example.widgetflottant/com.example.widgetflottant.MediaListenerService`
+
 ## Structure
 
 | Fichier | Rôle |

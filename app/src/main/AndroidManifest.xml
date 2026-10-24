@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Pochettes d'album données par une adresse internet -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Droit de lier des widgets : réservé au système, mais déclaré pour pouvoir être accordé par ADB (pm grant) -->
     <uses-permission
         android:name="android.permission.BIND_APPWIDGET"
@@ -43,6 +46,25 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Affiche des widgets dans des fenêtres flottantes" />
+        </service>
+        <!-- Accès aux notifications : nécessaire pour lire le lecteur de musique en cours -->
+        <service
+            android:name=".MediaListenerService"
+            android:exported="true"
+            android:label="Widgets Flottants"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".MusicWindowService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Affiche un lecteur musique dans une fenêtre flottante" />
         </service>
     </application>
 </manifest>

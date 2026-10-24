@@ -69,6 +69,14 @@ class MainActivity : Activity() {
             text = "Tout masquer"
             setOnClickListener { hideAll() }
         }
+        val musicButton = Button(this).apply {
+            text = "♪ Lecteur musique flottant"
+            setOnClickListener { startMusic() }
+        }
+        val musicStopButton = Button(this).apply {
+            text = "Fermer le lecteur musique"
+            setOnClickListener { stopService(Intent(this@MainActivity, MusicWindowService::class.java)) }
+        }
         val listTitle = TextView(this).apply {
             text = "Widgets enregistrés"
             textSize = 18f
@@ -81,6 +89,8 @@ class MainActivity : Activity() {
         root.addView(addButton)
         root.addView(showButton)
         root.addView(hideButton)
+        root.addView(musicButton)
+        root.addView(musicStopButton)
         root.addView(listTitle)
         root.addView(listBox)
         setContentView(ScrollView(this).apply { addView(root) })
@@ -168,6 +178,49 @@ class MainActivity : Activity() {
         startForegroundService(
             Intent(this, FloatingWidgetService::class.java).setAction(FloatingWidgetService.ACTION_SYNC)
         )
+    }
+
+    // ---------- Lecteur musique flottant ----------
+
+    /** Android ne laisse lire les lecteurs de musique en cours qu'aux applis ayant l'« accès aux notifications ». */
+    private fun hasListenerAccess(): Boolean {
+        val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: return false
+        return flat.contains(packageName)
+    }
+
+    private fun startMusic() {
+        if (!Settings.canDrawOverlays(this)) {
+            requestOverlay()
+            return
+        }
+        if (hasListenerAccess()) {
+            launchMusic()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Autorisation nécessaire")
+            .setMessage(
+                "Pour afficher la musique en cours (titre, pochette, boutons), l'appli doit avoir " +
+                    "« l'accès aux notifications ».\n\n" +
+                    "Touche « Ouvrir les réglages » et active « Widgets Flottants ».\n\n" +
+                    "Si cet écran n'existe pas sur cet appareil, l'autorisation peut aussi être donnée par ADB :\n" +
+                    "cmd notification allow_listener " +
+                    "com.example.widgetflottant/com.example.widgetflottant.MediaListenerService"
+            )
+            .setPositiveButton("Ouvrir les réglages") { _, _ ->
+                try {
+                    startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Écran introuvable sur cet appareil : utilise la commande ADB", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNeutralButton("Lancer quand même") { _, _ -> launchMusic() }
+            .setNegativeButton("Annuler", null)
+            .show()
+    }
+
+    private fun launchMusic() {
+        startForegroundService(Intent(this, MusicWindowService::class.java))
     }
 
     private fun hideAll() {
