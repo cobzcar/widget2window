@@ -38,13 +38,5 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Affiche des widgets dans des fenêtres flottantes" />
         </service>
-        <service
-            android:name=".AdbAssistantService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Assistant ADB : autoriser la liaison de widgets" />
-        </service>
     </application>
 </manifest>

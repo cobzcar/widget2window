@@ -69,10 +69,6 @@ class MainActivity : Activity() {
             text = "Tout masquer"
             setOnClickListener { hideAll() }
         }
-        val adbButton = Button(this).apply {
-            text = "Assistant : autoriser les widgets (ADB)"
-            setOnClickListener { startAdbAssistant() }
-        }
         val listTitle = TextView(this).apply {
             text = "Widgets enregistrés"
             textSize = 18f
@@ -85,7 +81,6 @@ class MainActivity : Activity() {
         root.addView(addButton)
         root.addView(showButton)
         root.addView(hideButton)
-        root.addView(adbButton)
         root.addView(listTitle)
         root.addView(listBox)
         setContentView(ScrollView(this).apply { addView(root) })
@@ -173,27 +168,6 @@ class MainActivity : Activity() {
         startForegroundService(
             Intent(this, FloatingWidgetService::class.java).setAction(FloatingWidgetService.ACTION_SYNC)
         )
-    }
-
-    /**
-     * Pour les appareils (box de voiture…) qui n'affichent pas la fenêtre « Autoriser cette appli à utiliser les widgets » :
-     * ouvre une petite fenêtre flottante qui associe l'appli au Débogage sans fil et accorde l'autorisation.
-     */
-    private fun startAdbAssistant() {
-        if (!Settings.canDrawOverlays(this)) {
-            requestOverlay()
-            return
-        }
-        startForegroundService(Intent(this, AdbAssistantService::class.java))
-        try {
-            startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
-        } catch (e: Exception) {
-            Toast.makeText(
-                this,
-                "Ouvre Réglages > Système > Options pour les développeurs > Débogage sans fil",
-                Toast.LENGTH_LONG
-            ).show()
-        }
     }
 
     private fun hideAll() {
@@ -317,17 +291,7 @@ class MainActivity : Activity() {
         val id = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
             ?.takeIf { it != -1 } ?: pendingId
         when (requestCode) {
-            REQ_BIND -> if (resultCode == RESULT_OK && id != -1) {
-                afterBind(id)
-            } else {
-                cancelPending()
-                Toast.makeText(
-                    this,
-                    "Autorisation non accordée. Si aucune fenêtre d'autorisation n'apparaît sur cet appareil, " +
-                        "utilise « Assistant : autoriser les widgets (ADB) ».",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+            REQ_BIND -> if (resultCode == RESULT_OK && id != -1) afterBind(id) else cancelPending()
             REQ_CONFIGURE -> if (resultCode == RESULT_OK && id != -1) finishAdd(id) else cancelPending()
         }
     }
