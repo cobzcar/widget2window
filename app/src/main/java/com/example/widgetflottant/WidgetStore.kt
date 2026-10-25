@@ -10,7 +10,8 @@ data class FloatingEntry(
     var x: Int,
     var y: Int,
     var w: Int,
-    var h: Int
+    var h: Int,
+    var collapsed: Boolean = false
 )
 
 /** Mémorise la liste des fenêtres flottantes (positions et tailles comprises). */
@@ -29,7 +30,8 @@ object WidgetStore {
                 val o = arr.getJSONObject(i)
                 list.add(
                     FloatingEntry(
-                        o.getInt("id"), o.getInt("x"), o.getInt("y"), o.getInt("w"), o.getInt("h")
+                        o.getInt("id"), o.getInt("x"), o.getInt("y"), o.getInt("w"), o.getInt("h"),
+                        o.optBoolean("c", false)
                     )
                 )
             }
@@ -73,6 +75,7 @@ object WidgetStore {
                     .put("y", it.y)
                     .put("w", it.w)
                     .put("h", it.h)
+                    .put("c", it.collapsed)
             )
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

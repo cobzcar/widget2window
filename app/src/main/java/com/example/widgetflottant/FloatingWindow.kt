@@ -4,20 +4,22 @@ import android.appwidget.AppWidgetHostView
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import kotlin.math.abs
 
 /**
  * Une fenêtre flottante contenant un widget.
- * Les commandes (barre de déplacement + ✕ en haut, poignée ◢ en bas à droite) se superposent au widget,
+ * Les commandes (barre du haut avec ✕, poignée ◢ en bas à droite) se superposent au widget,
  * disparaissent 0,7 s après le dernier toucher et réapparaissent dès qu'on touche la fenêtre.
+ * Un appui sur la barre réduit la fenêtre à la seule barre ; un second appui la rouvre.
  */
 class FloatingWindow(
     private val context: Context,
@@ -39,10 +41,14 @@ class FloatingWindow(
     private val handleSize = dp(36)
     private val minW = dp(120)
     private val minH = dp(90)
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+
+    private var collapsed = entry.collapsed
+    private var fullH = entry.h
 
     private val params = WindowManager.LayoutParams(
         entry.w,
-        entry.h,
+        if (collapsed) barH else fullH,
         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -68,6 +74,8 @@ class FloatingWindow(
             return super.dispatchTouchEvent(ev)
         }
     }
+    private lateinit var grip: TextView
+    private lateinit var handle: View
     private var attached = false
 
     init {
@@ -78,10 +86,7 @@ class FloatingWindow(
     private fun screenH() = context.resources.displayMetrics.heightPixels
 
     private fun buildUi() {
-        root.background = GradientDrawable().apply {
-            setColor(0xAA000000.toInt())
-            cornerRadius = dp(14).toFloat()
-        }
+        GlassStyle.apply(context, wm, params, root, dp(14).toFloat(), dp(1))
         root.clipToOutline = true
 
         // Le widget occupe toute la fenêtre ; les commandes se superposent.
@@ -93,8 +98,7 @@ class FloatingWindow(
             )
         )
 
-        val grip = TextView(context).apply {
-            text = "≡  déplacer"
+        grip = TextView(context).apply {
             setTextColor(Color.WHITE)
             textSize = 12f
             gravity = Gravity.CENTER
@@ -109,14 +113,11 @@ class FloatingWindow(
         val bar = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(0xCC202020.toInt())
+            setBackgroundColor(0x55000000)
             addView(grip, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
             addView(close, LinearLayout.LayoutParams(barH, ViewGroup.LayoutParams.MATCH_PARENT))
         }
-        root.addView(
-            bar,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, barH, Gravity.TOP)
-        )
+        root.addView(bar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, barH, Gravity.TOP))
 
         val resizeHandle = TextView(context).apply {
             text = "◢"
@@ -124,18 +125,40 @@ class FloatingWindow(
             textSize = 16f
             gravity = Gravity.BOTTOM or Gravity.END
             setPadding(0, 0, dp(6), dp(2))
-            setBackgroundColor(0x66000000)
+            setBackgroundColor(0x44000000)
         }
         root.addView(
             resizeHandle,
             FrameLayout.LayoutParams(handleSize, handleSize, Gravity.BOTTOM or Gravity.END)
         )
+        handle = resizeHandle
 
         controls.add(bar)
         controls.add(resizeHandle)
 
         attachDrag(grip)
         attachResize(resizeHandle)
+        applyCollapsed()
+    }
+
+    // ---------- Réduction à la barre ----------
+
+    /** Met la fenêtre dans l'état réduit (barre seule) ou normal, selon [collapsed]. */
+    private fun applyCollapsed() {
+        hostView.visibility = if (collapsed) View.GONE else View.VISIBLE
+        handle.visibility = if (collapsed) View.GONE else View.VISIBLE
+        grip.text = if (collapsed) "≡  agrandir" else "≡  déplacer / réduire"
+        params.height = if (collapsed) barH else fullH
+        update()
+        if (!collapsed) root.post { notifySize() }
+    }
+
+    private fun toggleCollapsed() {
+        collapsed = !collapsed
+        applyCollapsed()
+        persist()
+        showControls()
+        scheduleHide()
     }
 
     // ---------- Masquage automatique des commandes ----------
@@ -143,6 +166,7 @@ class FloatingWindow(
     private fun showControls() {
         root.removeCallbacks(hideRunnable)
         controls.forEach { v ->
+            if (collapsed && v === handle) return@forEach
             v.animate().cancel()
             v.visibility = View.VISIBLE
             v.animate().alpha(1f).setDuration(FADE_IN_MS).start()
@@ -155,6 +179,8 @@ class FloatingWindow(
     }
 
     private fun hideControls() {
+        // Réduite, la barre reste visible : c'est la seule chose à toucher pour rouvrir la fenêtre.
+        if (collapsed) return
         controls.forEach { v ->
             v.animate().cancel()
             // INVISIBLE : les commandes masquées ne captent plus les touchers, qui vont au widget
@@ -164,13 +190,14 @@ class FloatingWindow(
         }
     }
 
-    // ---------- Déplacement et redimensionnement ----------
+    // ---------- Déplacement, appui (réduire) et redimensionnement ----------
 
     private fun attachDrag(v: View) {
         var startX = 0
         var startY = 0
         var downX = 0f
         var downY = 0f
+        var moved = false
         v.setOnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -178,17 +205,27 @@ class FloatingWindow(
                     startY = params.y
                     downX = e.rawX
                     downY = e.rawY
+                    moved = false
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    params.x = (startX + (e.rawX - downX).toInt())
-                        .coerceIn(-(params.width - dp(72)), screenW() - dp(72))
-                    params.y = (startY + (e.rawY - downY).toInt())
-                        .coerceIn(0, screenH() - barH)
-                    update()
+                    if (!moved && (abs(e.rawX - downX) > touchSlop || abs(e.rawY - downY) > touchSlop)) {
+                        moved = true
+                    }
+                    if (moved) {
+                        params.x = (startX + (e.rawX - downX).toInt())
+                            .coerceIn(-(params.width - dp(72)), screenW() - dp(72))
+                        params.y = (startY + (e.rawY - downY).toInt())
+                            .coerceIn(0, screenH() - barH)
+                        update()
+                    }
                     true
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                MotionEvent.ACTION_UP -> {
+                    if (moved) persist() else toggleCollapsed()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
                     persist()
                     true
                 }
@@ -216,6 +253,7 @@ class FloatingWindow(
                         .coerceIn(minW, maxOf(minW, screenW()))
                     params.height = (startH + (e.rawY - downY).toInt())
                         .coerceIn(minH, maxOf(minH, screenH()))
+                    fullH = params.height
                     update()
                     true
                 }
@@ -231,8 +269,9 @@ class FloatingWindow(
 
     /** Prévient le widget de sa nouvelle taille (en dp) pour qu'il adapte sa mise en page. */
     private fun notifySize() {
+        if (collapsed) return
         val wDp = (params.width / density).toInt()
-        val hDp = (params.height / density).toInt()
+        val hDp = (fullH / density).toInt()
         hostView.updateAppWidgetSize(null, wDp, hDp, wDp, hDp)
     }
 
@@ -244,7 +283,8 @@ class FloatingWindow(
         entry.x = params.x
         entry.y = params.y
         entry.w = params.width
-        entry.h = params.height
+        entry.h = fullH
+        entry.collapsed = collapsed
         WidgetStore.update(context, entry)
     }
 

@@ -30,6 +30,12 @@ Un interrupteur « Lancer le lecteur musique au démarrage » (activé par défa
 Il faut accorder l'« accès aux notifications » à l'appli (Réglages), ou par ADB :
 `cmd notification allow_listener com.example.widgetflottant/com.example.widgetflottant.MediaListenerService`
 
+## Fenêtres : fond flouté, réduction, ouverture de l'appli
+
+- **Fond flouté** : les fenêtres sont en « verre dépoli » (translucide, avec le fond flouté derrière). Le flou demande Android 12+ et un appareil qui le gère ; sinon le fond est simplement translucide, un peu plus sombre.
+- **Réduire** : un appui sur la barre du haut réduit la fenêtre à la seule barre (« ≡ agrandir ») ; un second appui la rouvre. L'état est mémorisé. Pour déplacer la fenêtre, glisser la barre.
+- **Lecteur musique** : un appui sur la pochette ouvre l'appli de musique.
+
 ## Structure
 
 | Fichier | Rôle |

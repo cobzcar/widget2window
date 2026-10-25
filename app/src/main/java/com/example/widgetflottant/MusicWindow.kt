@@ -2,12 +2,12 @@ package com.example.widgetflottant
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
@@ -20,6 +20,7 @@ import android.text.TextUtils
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
@@ -29,11 +30,14 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import java.net.URL
 import kotlin.concurrent.thread
+import kotlin.math.abs
 
 /**
  * Lecteur musique flottant : pochette, boutons (précédent, -10 s, lecture/pause, +10 s, suivant), titre et artiste.
  * Il suit la lecture en cours de n'importe quelle appli de musique (Poweramp, Spotify, YouTube Music…).
- * Les commandes de déplacement/fermeture/redimensionnement se masquent 0,7 s après le dernier toucher.
+ * - Un appui sur la pochette ouvre l'appli de musique.
+ * - Les commandes de déplacement/fermeture/redimensionnement se masquent 0,7 s après le dernier toucher.
+ * - Un appui sur la barre réduit la fenêtre à la seule barre ; un second appui la rouvre.
  */
 class MusicWindow(
     private val context: Context,
@@ -55,10 +59,14 @@ class MusicWindow(
     private val handleSize = dp(36)
     private val minW = dp(200)
     private val minH = dp(260)
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+
+    private var collapsed = prefs.getBoolean("collapsed", false)
+    private var fullH = prefs.getInt("h", dp(400))
 
     private val params = WindowManager.LayoutParams(
         prefs.getInt("w", dp(280)),
-        prefs.getInt("h", dp(400)),
+        if (collapsed) barH else fullH,
         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -89,6 +97,9 @@ class MusicWindow(
     private lateinit var titleView: TextView
     private lateinit var subtitleView: TextView
     private lateinit var playPause: ImageView
+    private lateinit var gripView: TextView
+    private lateinit var contentView: View
+    private lateinit var handleView: View
 
     // ---------- Lecture en cours ----------
 
@@ -120,10 +131,7 @@ class MusicWindow(
     private fun screenH() = context.resources.displayMetrics.heightPixels
 
     private fun build() {
-        root.background = GradientDrawable().apply {
-            setColor(0xDD16161A.toInt())
-            cornerRadius = dp(18).toFloat()
-        }
+        GlassStyle.apply(context, wm, params, root, dp(18).toFloat(), dp(1))
         root.clipToOutline = true
 
         val content = LinearLayout(context).apply {
@@ -140,6 +148,8 @@ class MusicWindow(
                     outline.setRoundRect(0, 0, view.width, view.height, dp(12).toFloat())
                 }
             }
+            // Un appui sur la pochette ouvre l'appli de musique
+            setOnClickListener { openPlayerApp() }
         }
         content.addView(artView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
@@ -192,14 +202,14 @@ class MusicWindow(
         content.addView(titleView)
         content.addView(subtitleView)
 
+        contentView = content
         root.addView(
             content,
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         )
 
-        // Barre du haut : déplacer + fermer (se masque)
-        val grip = TextView(context).apply {
-            text = "≡  déplacer"
+        // Barre du haut : déplacer / réduire + fermer (se masque)
+        gripView = TextView(context).apply {
             setTextColor(Color.WHITE)
             textSize = 12f
             gravity = Gravity.CENTER
@@ -214,8 +224,8 @@ class MusicWindow(
         val bar = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(0xCC202020.toInt())
-            addView(grip, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+            setBackgroundColor(0x55000000)
+            addView(gripView, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
             addView(close, LinearLayout.LayoutParams(barH, ViewGroup.LayoutParams.MATCH_PARENT))
         }
         root.addView(bar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, barH, Gravity.TOP))
@@ -227,19 +237,62 @@ class MusicWindow(
             textSize = 16f
             gravity = Gravity.BOTTOM or Gravity.END
             setPadding(0, 0, dp(6), dp(2))
-            setBackgroundColor(0x66000000)
+            setBackgroundColor(0x44000000)
         }
         root.addView(
             resizeHandle,
             FrameLayout.LayoutParams(handleSize, handleSize, Gravity.BOTTOM or Gravity.END)
         )
+        handleView = resizeHandle
 
         controls.add(bar)
         controls.add(resizeHandle)
-        attachDrag(grip)
+        attachDrag(gripView)
         attachResize(resizeHandle)
 
         showMessage("Aucune lecture en cours", "Lance une musique sur la box")
+        applyCollapsed()
+    }
+
+    // ---------- Réduction à la barre ----------
+
+    private fun applyCollapsed() {
+        contentView.visibility = if (collapsed) View.GONE else View.VISIBLE
+        handleView.visibility = if (collapsed) View.GONE else View.VISIBLE
+        gripView.text = if (collapsed) "≡  agrandir" else "≡  déplacer / réduire"
+        params.height = if (collapsed) barH else fullH
+        update()
+    }
+
+    private fun toggleCollapsed() {
+        collapsed = !collapsed
+        applyCollapsed()
+        persist()
+        showControls()
+        scheduleHide()
+    }
+
+    // ---------- Ouvrir l'appli de musique ----------
+
+    private fun openPlayerApp() {
+        val c = controller ?: return
+        try {
+            val pending = c.sessionActivity
+            if (pending != null) {
+                pending.send()
+                return
+            }
+        } catch (_: Exception) {
+            // on essaie l'autre méthode
+        }
+        try {
+            val launch = context.packageManager.getLaunchIntentForPackage(c.packageName)
+            if (launch != null) {
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(launch)
+            }
+        } catch (_: Exception) {
+        }
     }
 
     // ---------- Données du lecteur ----------
@@ -350,6 +403,7 @@ class MusicWindow(
     private fun showControls() {
         root.removeCallbacks(hideRunnable)
         controls.forEach { v ->
+            if (collapsed && v === handleView) return@forEach
             v.animate().cancel()
             v.visibility = View.VISIBLE
             v.animate().alpha(1f).setDuration(120).start()
@@ -362,19 +416,22 @@ class MusicWindow(
     }
 
     private fun hideControls() {
+        // Réduite, la barre reste visible pour pouvoir rouvrir la fenêtre.
+        if (collapsed) return
         controls.forEach { v ->
             v.animate().cancel()
             v.animate().alpha(0f).setDuration(200).withEndAction { v.visibility = View.INVISIBLE }.start()
         }
     }
 
-    // ---------- Déplacement et redimensionnement ----------
+    // ---------- Déplacement, appui (réduire) et redimensionnement ----------
 
     private fun attachDrag(handle: View) {
         var startX = 0
         var startY = 0
         var downX = 0f
         var downY = 0f
+        var moved = false
         handle.setOnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -382,16 +439,26 @@ class MusicWindow(
                     startY = params.y
                     downX = e.rawX
                     downY = e.rawY
+                    moved = false
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    params.x = (startX + (e.rawX - downX).toInt())
-                        .coerceIn(-(params.width - dp(72)), screenW() - dp(72))
-                    params.y = (startY + (e.rawY - downY).toInt()).coerceIn(0, screenH() - barH)
-                    update()
+                    if (!moved && (abs(e.rawX - downX) > touchSlop || abs(e.rawY - downY) > touchSlop)) {
+                        moved = true
+                    }
+                    if (moved) {
+                        params.x = (startX + (e.rawX - downX).toInt())
+                            .coerceIn(-(params.width - dp(72)), screenW() - dp(72))
+                        params.y = (startY + (e.rawY - downY).toInt()).coerceIn(0, screenH() - barH)
+                        update()
+                    }
                     true
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                MotionEvent.ACTION_UP -> {
+                    if (moved) persist() else toggleCollapsed()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
                     persist()
                     true
                 }
@@ -417,6 +484,7 @@ class MusicWindow(
                 MotionEvent.ACTION_MOVE -> {
                     params.width = (startW + (e.rawX - downX).toInt()).coerceIn(minW, maxOf(minW, screenW()))
                     params.height = (startH + (e.rawY - downY).toInt()).coerceIn(minH, maxOf(minH, screenH()))
+                    fullH = params.height
                     update()
                     true
                 }
@@ -436,7 +504,8 @@ class MusicWindow(
     private fun persist() {
         prefs.edit()
             .putInt("x", params.x).putInt("y", params.y)
-            .putInt("w", params.width).putInt("h", params.height)
+            .putInt("w", params.width).putInt("h", fullH)
+            .putBoolean("collapsed", collapsed)
             .apply()
     }
 
