@@ -93,6 +93,10 @@ class MusicWindow(
         }
     }
 
+    /** Flou d'arrière-plan limité à la fenêtre : option de l'appli, si l'appareil le permet. */
+    private val blurOn = GlassStyle.isBlurEnabled(context) && OverlayHost.blurSupported(wm)
+    private val host = OverlayHost(context, wm, params, root, blurOn, dp(28))
+
     private lateinit var artView: ImageView
     private lateinit var titleView: TextView
     private lateinit var subtitleView: TextView
@@ -131,7 +135,7 @@ class MusicWindow(
     private fun screenH() = context.resources.displayMetrics.heightPixels
 
     private fun build() {
-        GlassStyle.apply(context, wm, params, root, dp(18).toFloat(), dp(1))
+        GlassStyle.apply(root, dp(18).toFloat(), dp(1), blurOn)
         root.clipToOutline = true
 
         val content = LinearLayout(context).apply {
@@ -498,7 +502,7 @@ class MusicWindow(
     }
 
     private fun update() {
-        if (attached) wm.updateViewLayout(root, params)
+        if (attached) host.update()
     }
 
     private fun persist() {
@@ -513,7 +517,7 @@ class MusicWindow(
 
     fun show() {
         if (attached) return
-        wm.addView(root, params)
+        host.add()
         attached = true
         try {
             msm.addOnActiveSessionsChangedListener(sessionsListener, listenerComponent)
@@ -533,10 +537,7 @@ class MusicWindow(
         }
         controller?.unregisterCallback(callback)
         controller = null
-        try {
-            wm.removeView(root)
-        } catch (_: Exception) {
-        }
+        host.remove()
         attached = false
     }
 }

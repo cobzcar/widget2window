@@ -74,6 +74,10 @@ class FloatingWindow(
             return super.dispatchTouchEvent(ev)
         }
     }
+    /** Flou d'arrière-plan limité à la fenêtre : option de l'appli, si l'appareil le permet. */
+    private val blurOn = GlassStyle.isBlurEnabled(context) && OverlayHost.blurSupported(wm)
+    private val host = OverlayHost(context, wm, params, root, blurOn, dp(28))
+
     private lateinit var grip: TextView
     private lateinit var handle: View
     private var attached = false
@@ -86,7 +90,7 @@ class FloatingWindow(
     private fun screenH() = context.resources.displayMetrics.heightPixels
 
     private fun buildUi() {
-        GlassStyle.apply(context, wm, params, root, dp(14).toFloat(), dp(1))
+        GlassStyle.apply(root, dp(14).toFloat(), dp(1), blurOn)
         root.clipToOutline = true
 
         // Le widget occupe toute la fenêtre ; les commandes se superposent.
@@ -276,7 +280,7 @@ class FloatingWindow(
     }
 
     private fun update() {
-        if (attached) wm.updateViewLayout(root, params)
+        if (attached) host.update()
     }
 
     private fun persist() {
@@ -290,7 +294,7 @@ class FloatingWindow(
 
     fun show() {
         if (attached) return
-        wm.addView(root, params)
+        host.add()
         attached = true
         root.post { notifySize() }
         scheduleHide() // les commandes sont visibles à l'ouverture puis se masquent après 0,7 s
@@ -299,10 +303,7 @@ class FloatingWindow(
     fun hide() {
         if (!attached) return
         root.removeCallbacks(hideRunnable)
-        try {
-            wm.removeView(root)
-        } catch (_: Exception) {
-        }
+        host.remove()
         attached = false
     }
 }

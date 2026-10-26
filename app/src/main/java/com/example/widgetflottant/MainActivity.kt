@@ -85,6 +85,19 @@ class MainActivity : Activity() {
                 BootReceiver.setAutostartEnabled(this@MainActivity, checked)
             }
         }
+        val blurSwitch = android.widget.Switch(this).apply {
+            text = "Flou d'arrière-plan des fenêtres (expérimental)"
+            isChecked = GlassStyle.isBlurEnabled(this@MainActivity)
+            setPadding(0, dp(8), 0, dp(8))
+            setOnCheckedChangeListener { _, checked ->
+                GlassStyle.setBlurEnabled(this@MainActivity, checked)
+                Toast.makeText(
+                    this@MainActivity,
+                    "Pris en compte à la réouverture des fenêtres (Tout masquer, puis Afficher)",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
         val listTitle = TextView(this).apply {
             text = "Widgets enregistrés"
             textSize = 18f
@@ -100,6 +113,7 @@ class MainActivity : Activity() {
         root.addView(musicButton)
         root.addView(musicStopButton)
         root.addView(autostartSwitch)
+        root.addView(blurSwitch)
         root.addView(listTitle)
         root.addView(listBox)
         setContentView(ScrollView(this).apply { addView(root) })
