@@ -35,6 +35,7 @@ class MainActivity : Activity() {
     private lateinit var statusView: TextView
     private lateinit var overlayButton: Button
     private lateinit var listBox: LinearLayout
+    private lateinit var blurStatusView: TextView
 
     /** Identifiant de widget en cours d'ajout (entre le choix et la fin de la configuration). */
     private var pendingId = -1
@@ -114,6 +115,8 @@ class MainActivity : Activity() {
         root.addView(musicStopButton)
         root.addView(autostartSwitch)
         root.addView(blurSwitch)
+        blurStatusView = TextView(this).apply { textSize = 12f }
+        root.addView(blurStatusView)
         root.addView(listTitle)
         root.addView(listBox)
         setContentView(ScrollView(this).apply { addView(root) })
@@ -134,6 +137,11 @@ class MainActivity : Activity() {
     // ---------- Interface ----------
 
     private fun refresh() {
+        val wmService = getSystemService(WINDOW_SERVICE) as android.view.WindowManager
+        val blurSupport = OverlayHost.blurSupported(wmService)
+        val lastBlur = getSharedPreferences("settings", MODE_PRIVATE).getString("blur_status", null)
+        blurStatusView.text = "Flou entre fenêtres géré par le système : " + (if (blurSupport) "oui" else "non") +
+            "\nDernier essai : " + (lastBlur ?: "aucun (ouvre une fenêtre avec l'interrupteur activé)")
         val granted = Settings.canDrawOverlays(this)
         statusView.text = if (granted) {
             "Affichage par-dessus les autres applis : autorisé ✓"

@@ -51,16 +51,26 @@ class OverlayHost(
         if (useBlur) {
             try {
                 addAsDialog()
+                saveStatus("Flou limité à la fenêtre demandé (fenêtre de dialogue créée, rayon ${blurRadiusPx} px)")
                 return
             } catch (e: Throwable) {
                 dialog?.let { runCatching { it.dismiss() } }
                 dialog = null
                 // la vue a pu être attachée au dialogue : on la détache avant le mode normal
                 (view.parent as? ViewGroup)?.removeView(view)
+                saveStatus("Échec du mode flou : ${e.javaClass.simpleName} ${e.message ?: ""}".trim())
             }
+        } else {
+            saveStatus("Flou non demandé (interrupteur désactivé, ou flou entre fenêtres indisponible)")
         }
         wm.addView(view, params)
         viewAdded = true
+    }
+
+    /** Mémorise le dernier mode obtenu, affiché dans l'appli pour comprendre ce qui se passe. */
+    private fun saveStatus(text: String) {
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+            .edit().putString("blur_status", text).apply()
     }
 
     private fun addAsDialog() {
