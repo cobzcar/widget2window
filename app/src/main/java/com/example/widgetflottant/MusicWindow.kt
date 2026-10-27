@@ -8,6 +8,9 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.PixelFormat
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import android.os.Build
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
@@ -97,6 +100,8 @@ class MusicWindow(
     private val blurOn = GlassStyle.isBlurEnabled(context) && OverlayHost.blurSupported(wm)
     private val host = OverlayHost(context, wm, params, root, blurOn, dp(28))
 
+    private lateinit var bgView: ImageView
+    private lateinit var scrimView: View
     private lateinit var artView: ImageView
     private lateinit var titleView: TextView
     private lateinit var subtitleView: TextView
@@ -137,6 +142,21 @@ class MusicWindow(
     private fun build() {
         GlassStyle.apply(root, dp(18).toFloat(), dp(1), blurOn)
         root.clipToOutline = true
+
+        // Fond : pochette floutée + voile sombre (visibles seulement quand une pochette est affichée)
+        bgView = ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+        root.addView(
+            bgView,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        scrimView = View(context).apply {
+            setBackgroundColor(0x80101418.toInt())
+            visibility = View.GONE
+        }
+        root.addView(
+            scrimView,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
 
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -326,7 +346,7 @@ class MusicWindow(
     private fun showMessage(title: String, subtitle: String) {
         titleView.text = title
         subtitleView.text = subtitle
-        artView.setImageDrawable(null)
+        setArt(null)
     }
 
     private fun updateMetadata(md: MediaMetadata?) {
@@ -349,13 +369,37 @@ class MusicWindow(
             ?: md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
         if (bitmap != null) {
             artToken++
-            artView.setImageBitmap(bitmap)
+            setArt(bitmap)
             return
         }
         val uri = md.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
             ?: md.getString(MediaMetadata.METADATA_KEY_ART_URI)
             ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI)
-        if (uri != null) loadArt(uri) else artView.setImageDrawable(null)
+        if (uri != null) loadArt(uri) else setArt(null)
+    }
+
+    /**
+     * Affiche la pochette, et la même image floutée en fond de fenêtre (voile sombre par-dessus pour garder
+     * le texte lisible). Ce flou est dessiné par l'appli elle-même : il ne dépend pas du système.
+     */
+    private fun setArt(bmp: Bitmap?) {
+        artView.setImageBitmap(bmp)
+        if (bmp == null) {
+            bgView.setImageDrawable(null)
+            scrimView.visibility = View.GONE
+            return
+        }
+        try {
+            val small = Bitmap.createScaledBitmap(bmp, 48, 48, true)
+            bgView.setImageBitmap(small)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                bgView.setRenderEffect(RenderEffect.createBlurEffect(24f, 24f, Shader.TileMode.CLAMP))
+            }
+            scrimView.visibility = View.VISIBLE
+        } catch (e: Exception) {
+            bgView.setImageDrawable(null)
+            scrimView.visibility = View.GONE
+        }
     }
 
     /** Charge une pochette donnée par adresse (content://, file:// ou http(s)://), hors du thread principal. */
@@ -371,7 +415,7 @@ class MusicWindow(
             } catch (e: Exception) {
                 null
             }
-            main.post { if (token == artToken) artView.setImageBitmap(bmp) }
+            main.post { if (token == artToken) setArt(bmp) }
         }
     }
 
@@ -519,6 +563,8 @@ class MusicWindow(
         if (attached) return
         host.add()
         attached = true
+        // le fond dépend du mode réellement obtenu (flou système actif ou non)
+        GlassStyle.apply(root, dp(18).toFloat(), dp(1), host.blurActive)
         try {
             msm.addOnActiveSessionsChangedListener(sessionsListener, listenerComponent)
             pick(msm.getActiveSessions(listenerComponent))

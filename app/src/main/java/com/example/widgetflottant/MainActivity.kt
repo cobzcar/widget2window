@@ -86,7 +86,7 @@ class MainActivity : Activity() {
             }
         }
         val blurSwitch = android.widget.Switch(this).apply {
-            text = "Flou d'arrière-plan des fenêtres (expérimental)"
+            text = "Flou système derrière les fenêtres (expérimental, selon la box)"
             isChecked = GlassStyle.isBlurEnabled(this@MainActivity)
             setPadding(0, dp(8), 0, dp(8))
             setOnCheckedChangeListener { _, checked ->

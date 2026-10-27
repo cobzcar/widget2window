@@ -43,6 +43,10 @@ class OverlayHost(
     private var dialog: Dialog? = null
     private var viewAdded = false
 
+    /** Vrai si la fenêtre a été créée en mode flou (sinon, mode normal, par choix ou après un échec). */
+    var blurActive = false
+        private set
+
     fun add() {
         if (useBlur) {
             try {
@@ -85,6 +89,7 @@ class OverlayHost(
         }
         d.show()
         dialog = d
+        blurActive = true
     }
 
     private fun applyGeometry(w: Window) {

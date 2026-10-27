@@ -296,6 +296,8 @@ class FloatingWindow(
         if (attached) return
         host.add()
         attached = true
+        // le fond dépend du mode réellement obtenu (flou système actif ou non)
+        GlassStyle.apply(root, dp(14).toFloat(), dp(1), host.blurActive)
         root.post { notifySize() }
         scheduleHide() // les commandes sont visibles à l'ouverture puis se masquent après 0,7 s
     }

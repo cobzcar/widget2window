@@ -32,6 +32,7 @@ Il faut accorder l'« accès aux notifications » à l'appli (Réglages), ou par
 
 ## Fenêtres : fond flouté, réduction, ouverture de l'appli
 
+- **Lecteur musique** : le fond de la fenêtre est la pochette floutée (dessinée par l'appli, elle marche sur tous les appareils), avec un voile sombre pour la lisibilité.
 - **Fond** : les fenêtres ont un fond translucide sombre. L'interrupteur « Flou d'arrière-plan des fenêtres (expérimental) » (désactivé par défaut) floute en plus ce qu'il y a derrière, limité à la zone de la fenêtre. Il demande Android 12+ et un appareil qui gère le flou ; il faut fermer puis rouvrir les fenêtres pour le prendre en compte.
 - **Réduire** : un appui sur la barre du haut réduit la fenêtre à la seule barre (« ≡ agrandir ») ; un second appui la rouvre. L'état est mémorisé. Pour déplacer la fenêtre, glisser la barre.
 - **Lecteur musique** : un appui sur la pochette ouvre l'appli de musique.
